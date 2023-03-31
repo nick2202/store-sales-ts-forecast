@@ -1,0 +1,322 @@
+---
+title: "An introduction to Time Series Forecasting using a case study of predicting sales of an Ecuadorian store chain"
+author: "Nicklas Prochazka"
+format: 
+  revealjs
+smaller: True
+editor: 
+  markdown: 
+    wrap: sentence
+---
+
+# Project Goal and Outline
+
+-   Explain the basics of Time Series analysis and forecasting
+
+-   Showcase them using data from Kaggle of sales of an Ecuadorian store chain
+
+-   Give insights into the process of developing and publishing a (small) Python package
+
+-   Compare and discuss results and next possible steps
+
+# Intoduction to data and features
+
+-   Sales data for 54 stores and 33 product families between 2013-01-01 to 2017-08-31 (\~3mil data points)
+
+-   Some auxiliary data (transactions, holidays, oil price)
+
+# Preprocessing
+
+-   Aggregation of the sales data for a given date over all stores and product families
+
+-   Splitting the data into training, validation and test set
+
+-   Only use data of national holidays
+
+# EDA
+
+## Sales data (overview)
+
+Sales data per store and product family
+
+| id      | date       | store_nbr | family     | sales    | onpromotion |
+|---------|------------|-----------|------------|----------|-------------|
+| 2215752 | 2016-05-31 | 3         | AUTOMOTIVE | 15.000   | 0           |
+| 2215753 | 2016-05-31 | 3         | BABY CARE  | 0.000    | 0           |
+| 2215754 | 2016-05-31 | 3         | BEAUTY     | 23.000   | 1           |
+| 2215755 | 2016-05-31 | 3         | BEVERAGES  | 9098.000 | 51          |
+| 2215756 | 2016-05-31 | 3         | BOOKS      | 0.000    | 0           |
+
+Sales data aggregated
+
+| date       | sales        | onpromotion |
+|------------|--------------|-------------|
+| 2016-05-31 | 9.743280e+05 | 14668       |
+| 2016-06-01 | 8.115253e+05 | 15912       |
+| 2016-06-02 | 6.945359e+05 | 8059        |
+| 2016-06-03 | 7.423631e+05 | 11747       |
+| 2016-06-04 | 1.011997e+06 | 6666        |
+
+## Sales data (temporal breakdown)
+
+![store_sales_analysis](./figures/images/store_sales_analysis.png){#fig-store_sales_analysis}
+
+## Sales data (per family breakdown)
+
+![average_sales_families](./figures/images/average_sales_families.png){#fig-average_sales_families}
+
+## Correlation sales vs. transactions
+
+![sales_vs_transactions](./figures/images/sales_vs_transactions.png){#fig-sales_vs_transactions}
+
+Pearson correlation coefficient between sales and transactions: 0.8373 (high).
+
+## Correlation among stores
+
+![correlation_stores](./figures/images/corr_stores.png){#fig-corr_stores width="100%"}
+
+Average Pearson correlation coefficient between stores: 0.8047 (high).
+
+## Correlation among product families
+
+![correlation_families](./figures/images/corr_families.png){#fig-corr_families width="100%"}
+
+Average Pearson correlation coefficient between product families: 0.4241 (moderate/low).
+
+## Other correlations
+
+Pearson correlation coefficient between sales and number of items on promotion: 0.5749 (moderate)
+
+Pearson correlation coefficient between sales and oil price: -0.5008 (moderate, negative)
+
+## STL Decomposition (weekly)
+
+![decomposition_weekly](./figures/images/decomposition.png){#fig-decomposition-weekly}
+
+## STL Decomposition (yearly)
+
+![decomposition_yearly](./figures/images/decomposition_yearly.png){#fig-decomposition-yearly}
+
+## Autocorrelation 1
+
+![autocorrelation1](./figures/images/acf_pacf.png){#fig-autocorr1 width="100%"}
+
+## Autocorrelation 2
+
+![autocorrelation2](./figures/images/acf_pacf_365.png){#fig-autocorr2 width="100%"}
+
+## Test for stationarity (Augmented Dickey-Fuller)
+
+![augmented_dickey_fuller](./figures/images/adf.png){#fig-adf width="100%"}
+
+# Model Selection
+
+## Exponential Smoothing
+
+![exponential_smoothing_baseline](./figures/images/expsm_fc.png){#fig-expsm_fc}
+
+## Hyperparameter Optimization ExpSm
+
+```{{python}}
+trend = ['add', 'mul', None]
+damped_trend = [True, False]
+seasonal = ['add', 'mul', None]
+periods = [7]
+use_boxcox = [True, False]
+remove_bias = [True, False]
+
+# best:
+{'trend': 'add', 'damped_trend': True, 'seasonal': 'mul', 'periods': 7, 'use_boxcox': True, 'remove_bias': True}
+
+```
+
+RMSE: 108003.45
+
+## SARIMA
+
+![sarima](./figures/images/sarima.png){#fig-sarima}
+
+
+## Hyperparameter Optimization SARIMA
+
+```{{python}}
+params_sarima = [
+    [(1, 1, 1), (1, 1, 1, 7)],
+    [(1, 1, 0), (1, 1, 1, 7)],
+    [(1, 1, 0), (1, 1, 0, 7)],
+    [(1, 1, 0), (0, 1, 0, 7)],
+    [(1, 1, 1), (1, 1, 0, 7)],
+    [(1, 1, 1), (2, 1, 0, 7)],
+    [(1, 1, 2), (1, 1, 2, 7)],
+    [(1, 1, 1), (1, 1, 2, 7)],
+    [(1, 1, 1), (2, 1, 2, 7)],
+    [(1, 1, 0), (1, 1, 2, 7)],
+    [(2, 1, 1), (2, 1, 1, 7)],
+    [(2, 1, 1), (1, 1, 1, 7)],
+    [(2, 1, 1), (1, 1, 0, 7)],
+    [(1, 1, 2), (2, 1, 2, 7)],
+    [(1, 1, 2), (1, 1, 0, 7)],
+    [(0, 1, 1), (1, 1, 1, 7)]
+]
+
+# best:
+[(1, 1, 1), (1, 1, 1, 7)]
+
+```
+
+RMSE: 97702.51
+
+## SARIMAX
+
+### Feature generation
+|date   |sales     |onpromotion|day_of_week_1|day_of_week_2|day_of_week_3|day_of_week_4|day_of_week_5|day_of_week_6|
+|-------|----------|-----------|-------------|-------------|-------------|-------------|-------------|-------------|
+|2017-07-27|6.598498e+05|8001       |0            |0            |0            |1            |0            |0            |
+|2017-07-28|8.350997e+05|13850      |0            |0            |0            |0            |1            |0            |
+|2017-07-29|1.032311e+06|9099       |0            |0            |0            |0            |0            |1            |
+|2017-07-30|1.123752e+06|10227      |0            |0            |0            |0            |0            |0            |
+|2017-07-31|8.858568e+05|8649       |1            |0            |0            |0            |0            |0            |
+
+RMSE: 88867.16
+
+# Model Comparison/Forecasting
+
+## Forecasting
+
+![all_predicitons](./figures/images/all_preds.png){#fig-preds fig-align="center"}
+
+## Metrics
+
+|Model  |MAE       |RMSE|RMSLE    |
+|-------|----------|----|---------|
+|Exponential Smoothing| 92287.5  | 125555.8| 0.1386  |
+|SARIMA | 84461.0  | 116867.5| 0.1302  |
+|SARIMAX| 89452.3  | 110509.4| 0.1205  |
+|SARIMAX (no time features)| 87837.6  | 117312.6| 0.132   |
+
+
+# Python package for parallel Hyperparameter Optimization using Grid Search and CV
+
+![](./figures/images/ts-hyperparam-opt_PyPI.png){#fig-ts-ho fig-align="center"}
+
+## Main function
+
+``` {{python}}
+def optimize_hyperparams(hyperparams: list, data, func: str, n_steps=1, n_splits=10, runs_per_split=1):
+
+    # bring data into right format
+    data = pd.DataFrame(data)
+    data = data.reset_index(drop=True)
+    tscv = TimeSeriesSplit(n_splits = n_splits, test_size=n_steps)
+    rmse_split = list()
+    
+    # evaluate params on every split
+    for train_index, test_index in tscv.split(data):
+        cv_train, cv_test = data.iloc[train_index], data.iloc[test_index]
+        rmse = list()
+        for i in range(0, runs_per_split):
+            try:
+                preds = globals()[func](hyperparams, cv_train, n_steps, cv_test)
+            except:
+                print(hyperparams)
+                traceback.print_exc()
+                return
+
+            true_values = cv_test.iloc[:,0].values
+            rmse.append(sqrt(mean_squared_error(true_values, preds)))
+
+        rmse_split.append(np.mean(rmse))
+
+    rmse_all = dict()
+    rmse_all[str(hyperparams)] = round(np.mean(rmse_split), 2)
+    return rmse_all
+```
+
+## Supported models
+
+### Exponential Smoothing
+
+``` {{python}}
+def exp_smoothing(hyperparams, cv_train, n_steps, cv_test):
+    return ExponentialSmoothing(
+        cv_train.astype(float),
+        seasonal_periods=hyperparams["periods"],
+        trend=hyperparams["trend"],
+        seasonal=hyperparams["seasonal"],
+        damped_trend=hyperparams["damped_trend"],
+        use_boxcox=hyperparams["use_boxcox"],
+        initialization_method="estimated",
+    ).fit(remove_bias=hyperparams["remove_bias"]).simulate(n_steps, repetitions=100, error="mul").mean(axis=1)
+```
+
+\
+
+### SARIMA
+
+``` {{python}}
+def sarima(hyperparams, cv_train, n_steps, cv_test):
+    return SARIMAX(
+        cv_train.astype(float),
+        order=hyperparams[0],
+        seasonal_order=hyperparams[1]
+    ).fit().forecast(steps=n_steps)
+```
+
+\
+
+### SARIMAX
+
+``` {{python}}
+def sarimax(hyperparams, cv_train, n_steps, cv_test):
+    return SARIMAX(
+        endog=cv_train.iloc[:,0],
+        exog=cv_train.iloc[:,1:],
+        order=hyperparams[0],
+        seasonal_order=hyperparams[1]
+    ).fit().forecast(steps=n_steps, exog=cv_test.iloc[:,1:])
+```
+
+## Usage
+
+### Parallel hyperparameter optimization
+
+``` {{python}}
+from ts_hyperparam_opt import parallel_hyperparameter_optimization as pho
+
+if __name__ == '__main__':
+    freeze_support()
+    results_exp_smoothing = process_map(partial(pho.optimize_hyperparams, data=df_sales_train, func="exp_smoothing",
+                                                n_steps=15, runs_per_split=10), params_exp_smoothing)
+```
+
+Output:
+``` {{python}}
+[{"{'trend': 'add', 'damped_trend': True, 'seasonal': 'mul', 'periods': 7, 'use_boxcox': True, 'remove_bias': True}": 108003.45},
+ {"{'trend': None, 'damped_trend': False, 'seasonal': 'mul', 'periods': 7, 'use_boxcox': True, 'remove_bias': True}": 108611.14},
+ {"{'trend': 'mul', 'damped_trend': True, 'seasonal': 'mul', 'periods': 7, 'use_boxcox': True, 'remove_bias': False}": 108993.4}, 
+ [...]
+ ]
+```
+
+\
+
+### Model evaluation using CV
+
+``` {{python}}
+pho.optimize_hyperparams([(1, 1, 1), (1, 1, 1, 7)], df_sales_ext_train, "sarimax", n_steps=15)
+```
+
+Output:
+``` {{python}}
+{'[(1, 1, 1), (1, 1, 1, 7)]': 88867.16}
+```
+
+## Future Work and Discussion
+
+There are several areas where the model could be improved in future iterations.
+
+-   using a bottom-up approach
+
+-   collecting more (potentially) meaningful exogenous features
+
+-   using more sophisticated methods like Prophet or (LSTM) Neural Networks
